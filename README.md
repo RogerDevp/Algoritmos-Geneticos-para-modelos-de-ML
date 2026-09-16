@@ -1,28 +1,37 @@
 # 🧬 Algoritmos Genéticos para Optimización de Modelos ML
 
-> Aplicación de algoritmos evolutivos para optimizar redes neuronales sobre el dataset *Students Performance in Exams* (Kaggle, n=1000).
+> Tres implementaciones de Algoritmos Genéticos (AG) aplicadas a una red neuronal MLP sobre el dataset **Students Performance in Exams** (Kaggle · n=1 000 · 3 clases).
+
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-MLP-F7931E?style=flat-square&logo=scikit-learn&logoColor=white)
+![Kaggle](https://img.shields.io/badge/Dataset-Kaggle-20BEFF?style=flat-square&logo=kaggle&logoColor=white)
 
 ---
 
 ## 📌 Objetivo
 
-Demostrar que los **Algoritmos Genéticos (AG)** superan a la configuración manual de hiperparámetros al:
-1. **Seleccionar variables** relevantes (Feature Selection)
-2. **Optimizar la arquitectura** de una red neuronal (Neuroevolution)
+Demostrar que los **Algoritmos Genéticos** mejoran el rendimiento de una red neuronal mediante tres estrategias de optimización complementarias, partiendo de un modelo base con **accuracy 41.5 %**.
 
 ---
 
-## 🗂️ Pipeline del Proyecto
+## 🗂️ Pipeline General
 
 ```mermaid
 flowchart LR
-    A["🗄️ Dataset\n1000 estudiantes\n12 features"] --> B["🧹 Preprocesamiento\nOne-Hot Encoding\nStandardScaler"]
-    B --> C["🔵 Modelo Base\nMLP 16→8\nAccuracy: 41.5%"]
-    B --> D["🟢 Feature Selection AG\n20 gen · Pop 10\n4 variables óptimas"]
-    B --> E["🟣 Neuroevolution AG\n20 gen · Pop 10\nArquitectura 4"]
-    C --> F["📊 Comparativa Final"]
-    D --> F
-    E --> F
+    DS["🗄️ Dataset\n1 000 estudiantes\n12 features codificadas"] --> BASE
+    DS --> FS
+    DS --> HP
+    DS --> NE
+
+    BASE["🔵 Baseline MLP\nArq: 16→8\nAcc test: 41.5%"]
+    FS["🟢 Feature Selection\nfeature_selection.py\nAcc test: 40.0%"]
+    HP["🟡 Hyperparameter Opt.\nhyperparameter_optimization.py\nAcc test: 50.6%"]
+    NE["🟣 Neuroevolution\nneuroevolution.py\nAcc test: 45.0%"]
+
+    BASE --> CMP["📊 Comparativa Final"]
+    FS --> CMP
+    HP --> CMP
+    NE --> CMP
 ```
 
 ---
@@ -31,91 +40,160 @@ flowchart LR
 
 | Característica | Detalle |
 |---|---|
-| **Fuente** | Kaggle – Students Performance in Exams |
-| **Instancias** | 1,000 estudiantes |
-| **Features originales** | 12 (tras One-Hot Encoding) |
-| **Target** | Nivel de rendimiento: Bajo / Medio / Alto |
-| **Split** | 80% entrenamiento · 20% prueba |
-| **Balance** | ~333 instancias por clase ✅ |
+| **Fuente** | Kaggle – *Students Performance in Exams* |
+| **Instancias** | 1 000 estudiantes |
+| **Features** | 5 categóricas → 12 tras One-Hot Encoding |
+| **Target** | Rendimiento: `0=Bajo` · `1=Medio` · `2=Alto` |
+| **Split train/test** | 80 % / 20 % estratificado |
+| **Balance** | ≈333 instancias por clase ✅ |
 
 ---
 
-## 🔵 Baseline — MLP Manual
+## 🔵 Baseline — MLP Manual (`main.py`)
 
-Configuración de referencia entrenada sin optimización.
+Modelo de referencia fijo, **sin optimización**. Arquitectura elegida arbitrariamente: dos capas ocultas de 16 y 8 neuronas.
 
 | Parámetro | Valor |
 |---|---|
-| Arquitectura | `(16, 8)` — 2 capas ocultas |
-| Activación | ReLU |
-| Optimizador | Adam · lr=0.001 |
-| Max iteraciones | 1,000 |
+| Arquitectura | `(16, 8)` |
+| Activación | ReLU · Adam · lr=0.001 |
+| Max iteraciones | 1 000 |
 
-### Reporte de Clasificación
+**Resultado:** Accuracy test = **0.4150** ⚠️ El modelo no converge.
 
-| Clase | Precision | Recall | F1-Score |
+| Clase | Precision | Recall | F1 |
 |---|---|---|---|
 | Bajo | 0.44 | 0.55 | 0.49 |
 | Medio | 0.29 | 0.25 | 0.27 |
 | Alto | 0.52 | 0.44 | 0.48 |
 | **Global** | **0.41** | **0.41** | **0.41** |
 
-> [!NOTE]
-> El modelo base no converge (ConvergenceWarning), indicando que la arquitectura y/o las variables no son óptimas.
-
 ---
 
-## 🟢 Módulo 1 — Feature Selection con AG
+## 🟢 Módulo 1 — Feature Selection AG (`feature_selection.py`)
 
-Búsqueda binaria sobre el espacio de 12 variables para maximizar accuracy de validación.
+### Explicación
+
+Cada individuo es un **genoma binario de 12 bits** (uno por variable). Un `1` incluye la variable; un `0` la descarta. El AG busca el subconjunto que maximice el accuracy de validación.
+
+| Operador genético | Implementación |
+|---|---|
+| **Representación** | Cadena binaria de longitud 12 |
+| **Selección** | Torneo de tamaño 3 |
+| **Cruzamiento** | Un punto aleatorio |
+| **Mutación** | Inversión de bit con prob. 0.15 |
+| **Elitismo** | Mejor individuo pasa directo |
 
 ```mermaid
 flowchart LR
-    G0["Gen 0\n🎲 Población aleatoria\nBest: 0.469"] -->|Selección + Crossover + Mutación| G1
-    G1["Gen 1\n📈 Best: 0.4688"] --> G2["Gen 2\n📈 Best: 0.4813"]
-    G2 --> G5["Gen 5..18\n⏸ Estabilización"]
-    G5 --> G19["Gen 19-20\n🚀 Best: 0.4875\nGenoma: 010100100010"]
+    G0["Gen 0 🎲\nBest: 0.469\nGenoma aleatorio"] -->|crossover + mutación| G2
+    G2["Gen 2 📈\nBest: 0.4813\nEstabilización"] --> G18["Gen 18 ⏸\nBest: 0.4813"]
+    G18 --> G20["Gen 19-20 🚀\nBest: 0.4875\n010100100010"]
 ```
 
-### Resultado
+### Resultado — Funciona ✅
 
 | Métrica | Valor |
 |---|---|
-| Generaciones | 20 |
-| Tamaño de población | 10 |
-| **Variables seleccionadas** | **4 de 12** |
-| **Mejor accuracy (validación)** | **0.4875** |
+| Generaciones | 20 · Población 10 |
+| Variables reducidas | **4 de 12 (−67 %)** |
+| Accuracy validación AG | **0.4875** |
+| Accuracy test final | **0.4000** |
 
-**Variables óptimas encontradas:**
-- `race/ethnicity_group B`
-- `race/ethnicity_group D`
-- `parental level of education_high school`
-- `lunch_standard`
+**Variables seleccionadas por el AG:**
+
+```
+✔ race/ethnicity_group B
+✔ race/ethnicity_group D
+✔ parental level of education_high school
+✔ lunch_standard
+```
+
+> El AG redujo el espacio de variables un 67 % manteniendo accuracy competitivo en validación. La ligera caída en test refleja sobreajuste al conjunto de validación interno.
 
 ---
 
-## 🟣 Módulo 2 — Neuroevolution con AG
+## 🟡 Módulo 2 — Hyperparameter Optimization AG (`hyperparameter_optimization.py`)
 
-Búsqueda evolutiva sobre el espacio de arquitecturas neuronales (1–3 capas, 4–32 neuronas por capa).
+### Explicación
+
+Cada individuo codifica **tres genes**: `[learning_rate, optimizador, activación]`. La arquitectura MLP se mantiene fija en `(16, 8)`. El AG aplica **mutación continua gaussiana** en el lr y mutación discreta en los otros dos genes.
+
+| Gen | Tipo | Espacio |
+|---|---|---|
+| `learning_rate` | Continuo (float) | [0.0001 · 0.0100] |
+| `optimizador` | Discreto (índice) | `adam`, `sgd`, `lbfgs` |
+| `activación` | Discreto (índice) | `relu`, `tanh`, `logistic` |
+
+| Operador genético | Implementación |
+|---|---|
+| **Representación** | Vector `[lr, idx_opt, idx_act]` |
+| **Selección** | Torneo de tamaño 3 |
+| **Cruzamiento** | Un punto (3 genes) |
+| **Mutación lr** | Ruido gaussiano σ=0.0003 |
+| **Mutación discreta** | Re-muestreo uniforme (prob. 0.20) |
 
 ```mermaid
 flowchart LR
-    G0["Gen 0\nArq. aleatoria\nBest: 0.475"] --> G3["Gen 3\nMejora\nBest: 0.4938"]
-    G3 --> G7["Gen 7\n🚀 Salto\nBest: 0.500"]
-    G7 --> G8["Gen 8\nBest: 0.5062"]
-    G8 --> G20["Gen 9-20\n⏸ Convergencia\nArq: (4,)"]
+    G0["Gen 0 🎲\nBest: 0.494\nlr≈0.001 aleatorio"] --> G4["Gen 4 ⏸\nBest: 0.494"]
+    G4 -->|mutación gaussiana lr| G5["Gen 5 🚀\nBest: 0.5063\nlr calibrado"]
+    G5 --> G20["Gen 6-20 ✅\nBest: 0.5063\nEstabilización"]
 ```
 
-### Resultado
+### Resultado — Funciona ✅
 
 | Métrica | Valor |
 |---|---|
-| Generaciones | 20 |
-| Tamaño de población | 10 |
-| Rango de capas | 1 a 3 |
-| Rango de neuronas | 4 a 32 |
-| **Arquitectura óptima** | **`(4,)` — 1 capa oculta** |
-| **Mejor accuracy (validación)** | **0.5062** |
+| Generaciones | 20 · Población 10 |
+| **Learning rate óptimo** | **calibrado via AG** |
+| **Optimizador óptimo** | `adam` |
+| **Activación óptima** | `relu` |
+| Accuracy validación AG | **0.5063** |
+| **Accuracy test final** | **0.5062** |
+
+> El AG encontró una calibración fina del learning rate en sólo 5 generaciones, logrando el **mayor accuracy de los 3 módulos** (+9.2 pp sobre baseline).
+
+---
+
+## 🟣 Módulo 3 — Neuroevolution AG (`neuroevolution.py`)
+
+### Explicación
+
+Cada individuo es una **lista variable de enteros** que representa la arquitectura de la red: cada entero es el número de neuronas de una capa oculta. El AG puede agregar o eliminar capas ocultas en la mutación.
+
+| Parámetro | Espacio de búsqueda |
+|---|---|
+| Número de capas | 1 a 3 capas ocultas |
+| Neuronas por capa | 4 a 32 neuronas |
+| HP fijos | relu · adam · lr=0.001 |
+
+| Operador genético | Implementación |
+|---|---|
+| **Representación** | Lista de enteros (longitud variable) |
+| **Selección** | Torneo de tamaño 3 |
+| **Cruzamiento** | Adaptativo por longitud mínima |
+| **Mutación neuronas** | Delta ±1/2/4 (prob. 0.25 por gen) |
+| **Mutación estructura** | Agregar/eliminar capa (prob. 0.25) |
+
+```mermaid
+flowchart LR
+    G0["Gen 0 🎲\nArq. aleatoria\nBest: 0.475"] --> G3["Gen 3 📈\nArq:(8)\nBest: 0.4938"]
+    G3 --> G7["Gen 7 🚀\nArq:(4→6)\nBest: 0.500"]
+    G7 --> G8["Gen 8\nArq:(4)\nBest: 0.5062"]
+    G8 --> G20["Gen 9-20 ⏸\nArq:(4,)\nEstabilización"]
+```
+
+### Resultado — Funciona ✅
+
+| Métrica | Valor |
+|---|---|
+| Generaciones | 20 · Población 10 |
+| **Arquitectura óptima** | **`(4,)` — 1 capa, 4 neuronas** |
+| Parámetros (vs baseline) | **4× menos neuronas** |
+| Accuracy validación AG | **0.5062** |
+| **Accuracy test final** | **0.4500** |
+
+> El AG descubrió que una red mucho más simple supera a la arquitectura de referencia, evitando sobreajuste en un problema de baja dimensionalidad.
 
 ---
 
@@ -123,20 +201,21 @@ flowchart LR
 
 ```mermaid
 xychart-beta
-    title "Accuracy en Conjunto de Prueba"
-    x-axis ["Baseline MLP", "Feature Selection AG", "Neuroevolution AG"]
+    title "Accuracy en Conjunto de Prueba (Test)"
+    x-axis ["Baseline MLP", "Feature Selection", "Hyperparameter Opt.", "Neuroevolution"]
     y-axis "Accuracy" 0.35 --> 0.55
-    bar [0.415, 0.400, 0.450]
+    bar [0.415, 0.400, 0.506, 0.450]
 ```
 
-| Modelo | Arquitectura | Variables | Accuracy Test |
-|---|---|---|---|
-| 🔵 Baseline | `(16, 8)` | 12 | 0.4150 |
-| 🟢 Feature Selection AG | `(16, 8)` | 4 | 0.4000 |
-| 🟣 **Neuroevolution AG** | **`(4,)`** | **12** | **0.4500 ✅** |
+| Módulo | Script | Qué optimiza | Acc. Test | Δ vs Baseline |
+|---|---|---|---|---|
+| 🔵 Baseline | `main.py` | — | 0.4150 | — |
+| 🟢 Feature Selection | `feature_selection.py` | Subconjunto de variables | 0.4000 | −1.5 pp |
+| 🟡 **Hyperparameter Opt.** | `hyperparameter_optimization.py` | lr, optimizador, activación | **0.5062** | **+9.1 pp ✅** |
+| 🟣 Neuroevolution | `neuroevolution.py` | Arquitectura (capas/neuronas) | 0.4500 | +3.5 pp |
 
 > [!IMPORTANT]
-> **Neuroevolution** logra el mayor accuracy en test (+3.5 pp sobre baseline) con una arquitectura **4× más simple** que el modelo de referencia.
+> La **Optimización de Hiperparámetros** logra la mayor ganancia (+9.1 pp) al calibrar el learning rate con mutación gaussiana continua. **Neuroevolution** obtiene una red 4× más compacta sin sacrificar rendimiento. **Feature Selection** reduce variables al 33 % pero no mejora el test en este dataset de baja dimensionalidad.
 
 ---
 
@@ -144,23 +223,20 @@ xychart-beta
 
 ```
 📦 Algoritmos-Geneticos-para-modelos-de-ML/
-├── 📄 main.py                         # Modelo baseline MLP
-├── 📄 feature_selection.py            # AG para selección de variables
-├── 📄 hyperparameter_optimization.py  # AG para neuroevolution
-├── 🖼️ feature selection.png           # Curva de fitness - Feature Selection
-├── 🖼️ neuroevolution.png              # Curva de fitness - Neuroevolution
-└── 🖼️ Matriz_Consistencia.png         # Matriz de consistencia metodológica
+│
+├── 📄 main.py                          # Baseline MLP (16,8)
+├── 📄 feature_selection.py             # AG · Selección de variables (genoma binario)
+├── 📄 hyperparameter_optimization.py   # AG · LR + optimizador + activación (continuo)
+├── 📄 neuroevolution.py                # AG · Arquitectura dinámica (longitud variable)
+│
+├── 🖼️ feature selection.png            # Curva de fitness Feature Selection
+├── 🖼️ hyperparameter_optimization.png  # Curva de fitness Hyperparameter Opt.
+├── 🖼️ neuroevolution.png               # Curva de fitness Neuroevolution
+├── 🖼️ Matriz_Consistencia.png          # Matriz de consistencia metodológica
+│
+└── 📄 pruebas.md                       # Salidas completas de ejecución
 ```
 
 ---
 
-## 🛠️ Stack Tecnológico
-
-![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
-![scikit-learn](https://img.shields.io/badge/scikit--learn-MLP-F7931E?style=flat-square&logo=scikit-learn&logoColor=white)
-![Pandas](https://img.shields.io/badge/Pandas-Data-150458?style=flat-square&logo=pandas&logoColor=white)
-![Kaggle](https://img.shields.io/badge/Dataset-Kaggle-20BEFF?style=flat-square&logo=kaggle&logoColor=white)
-
----
-
-*Algoritmos Genéticos · Machine Learning · 2026*
+*Proyecto de investigación aplicada — Algoritmos Genéticos para Machine Learning · 2026*
